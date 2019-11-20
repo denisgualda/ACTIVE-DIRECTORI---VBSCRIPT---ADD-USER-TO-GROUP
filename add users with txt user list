@@ -1,0 +1,80 @@
+dim groupPath
+dim userPath
+
+On Error Resume Next
+
+''*************************************************************
+'LLEGEIG FITXER PER OBTENIR LLISTAT D'USUARIS QUE S'ELIMINARAN DEL GRUP
+'*************************************************************
+wscript.echo "Selecciona el fitxer amb els usuaris a afegir"
+'OBRE FINESTRA PER INDICA ON ESTA EL FITXER-----------------------------
+Set wShell=CreateObject("WScript.Shell")
+Set oExec=wShell.Exec("mshta.exe ""about:<input type=file id=FILE><script>FILE.click();new ActiveXObject('Scripting.FileSystemObject').GetStandardStream(1).WriteLine(FILE.value);close();resizeTo(0,0);</script>""")
+obre_fitxer_txt = oExec.StdOut.ReadLine
+'---------------------------------------------------------------------------
+
+Dim objFSORead: Set objFSORead = CreateObject("Scripting.FileSystemObject")
+dim filetoread
+filetoread = obre_fitxer_txt
+set objReadFile = objFSORead.OpenTextFile (filetoread,1)
+'*************************************************************
+'*************************************************************
+
+'***************************************************************************************************
+' INFORMACIO PER CRIDAR LA FUNCIO GetUserDN  --> Obtenir Distingueshed name d'usuari i grup		  '|
+																								  '|
+Set objSystemInfo = CreateObject("ADSystemInfo") 												  '|	
+strDomain = objSystemInfo.DomainShortName														  '|	
+'***************************************************************************************************
+
+'*************************************************************
+'DEMANA GRUP ON S'ESBORRARAN ELS USUARIS I OBTÉ DistingueshedName
+llegir_grup = InputBox("Introdueix el grup on afegir els usuaris")
+strGrup = GetUserDN(llegir_grup,strDomain)
+strGrup = "LDAP://" & strGrup
+groupPath = strGrup
+'wscript.echo "DN GRUP:" & groupPath
+'*************************************************************
+
+'RECORRE FITXER PER OBTENIR GRUPS DE SEGURETAT
+'----------------------------------------------------
+resultat_sortint = "USUARIS AFEGITS AL GRUP: " & llegir_grup & VbCrlf
+resultat_sortint = resultat_sortint & "------------------------------------------" & VbCrlf
+
+Do While Not objReadFile.AtEndOfStream
+	llegir_usuari = objReadFile.readline
+
+	userPath = GetUserDN(llegir_usuari,strDomain)
+	strUser = "LDAP://" & userPath
+	userPath = strUser
+	resultat_sortint = resultat_sortint & llegir_usuari  & Vbcrlf
+
+	addusertogroup userPath,groupPath
+Loop
+wscript.echo resultat_sortint 
+
+'----------------------------------------------------
+'EXEMPLE: ESBORRA USUARIS GRUP    -- NECESITA --> DN USUARI DN GRUP
+		'groupPath = "LDAP://CN=GRUP1,OU=Grups,DC=domini,DC=lab"
+		'userPath = "LDAP://CN=usuari01,OU=Usuaris,DC=domini,DC=lab"
+		'removeFromGroup userPath,groupPath
+'----------------------------------------------------
+
+sub addusertogroup(userPath, groupPath)
+
+set objUser = GetObject(userPath)
+set objGroup = GetObject(groupPath)
+
+objGroup.add(objUser.ADsPath)
+
+end sub
+
+
+Function GetUserDN(byval strUserName,byval strDomain)	
+	Set objTrans = CreateObject("NameTranslate")
+	objTrans.Init 1, strDomain
+	objTrans.Set 3, strDomain & "\" & strUserName 
+	strUserDN = objTrans.Get(1) 
+	GetUserDN = strUserDN	
+end function
+
